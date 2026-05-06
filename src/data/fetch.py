@@ -27,6 +27,7 @@ def _make_client() -> openmeteo_requests.Client:
     return openmeteo_requests.Client(session=retry_session)
 
 
+# Use when you need to customize the request before calling fetch_raw (e.g. different date range or location).
 def build_params(start_date: str, end_date: str, lat: float, lon: float) -> dict:
     return {
         "latitude": lat,
@@ -39,6 +40,7 @@ def build_params(start_date: str, end_date: str, lat: float, lon: float) -> dict
     }
 
 
+# Use when you need the raw API response object to pass to parse_hourly/parse_daily yourself, or to inspect fields not yet parsed.
 def fetch_raw(params: dict):
     client = _make_client()
     responses = client.weather_api(_BASE_URL, params=params)
@@ -55,24 +57,28 @@ def _build_time_index(obj) -> pd.DatetimeIndex:
     )
 
 
+# Use after fetch_raw to extract hourly variables (temperature, wind, pressure-level, etc.) into a DataFrame.
 def parse_hourly(response) -> pd.DataFrame:
     hourly = response.Hourly()
     data = {var: hourly.Variables(i).ValuesAsNumpy() for i, var in enumerate(_ALL_HOURLY)}
     return pd.DataFrame(data, index=_build_time_index(hourly))
 
 
+# Use after fetch_raw to extract daily summary variables (precip, min/max temp, etc.) into a DataFrame.
 def parse_daily(response) -> pd.DataFrame:
     daily = response.Daily()
     data = {var: daily.Variables(i).ValuesAsNumpy() for i, var in enumerate(DAILY_VARS)}
     return pd.DataFrame(data, index=_build_time_index(daily))
 
 
+# Use to persist both DataFrames to disk after fetching, so subsequent runs can use load_weather instead of hitting the API.
 def save_weather(hourly_df: pd.DataFrame, daily_df: pd.DataFrame) -> None:
     os.makedirs(DATA_DIR, exist_ok=True)
     hourly_df.to_csv(os.path.join(DATA_DIR, "hourly.csv"))
     daily_df.to_csv(os.path.join(DATA_DIR, "daily.csv"))
 
 
+# Use when data has already been fetched and saved — returns (hourly_df, daily_df) from disk without an API call.
 def load_weather() -> tuple[pd.DataFrame, pd.DataFrame]:
     hourly_path = os.path.join(DATA_DIR, "hourly.csv")
     daily_path = os.path.join(DATA_DIR, "daily.csv")
@@ -83,6 +89,8 @@ def load_weather() -> tuple[pd.DataFrame, pd.DataFrame]:
     return hourly_df, daily_df
 
 
+# Use as the single entry point for ingestion — fetches, parses, saves, and returns (hourly_df, daily_df) in one call.
+# Prefer this over calling build_params/fetch_raw/parse_*/save_weather separately unless you need to customize a step.
 def fetch_weather(
     start_date: str = HISTORICAL_START,
     end_date: str | None = None,
