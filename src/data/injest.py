@@ -1,4 +1,5 @@
 from fetch import fetch_weather
+import pandas as pd
 from utils.config import HISTORICAL_START, DENVER_LAT, DENVER_LON
 from datetime import datetime
 
@@ -10,6 +11,15 @@ def injest_hourly(hourly_df):
 
 # extract important daily variables, create clean dataframe for training
 def injest_daily(daily_df):
+    # drop completely null rows and columns
+    daily_df.dropna(how="all").dropna(axis="column", how="all")
+
+    # drop columns that carry no meaning
+    daily_df.drop(
+        columns=["apparent_temperature_max", "apparent_temperature_min"]
+    )  # more
+
+    # make new columns
     return daily_df
 
 
